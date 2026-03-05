@@ -2,11 +2,23 @@
 
 import { useState, use, useEffect, useRef } from "react"
 import { motion } from "framer-motion"
-import { Play, Pause, Image as ImageIcon } from "lucide-react"
+import { Play, Pause, Image as ImageIcon, Share2 } from "lucide-react"
 import { getCD, type CD } from "@/lib/store"
 
 interface PageProps {
   params: Promise<{ id: string }>
+}
+
+// --- YARDIMCI FONKSİYONLAR ---
+
+// URL'deki veriyi güvenli bir şekilde çözmek için (Base64 -> JSON)
+function decodeAlbumData(encodedData: string): CD | null {
+  try {
+    const decoded = decodeURIComponent(atob(encodedData))
+    return JSON.parse(decoded)
+  } catch (e) {
+    return null
+  }
 }
 
 function getYouTubeEmbedUrl(url: string) {
@@ -58,8 +70,16 @@ export default function CDPage({ params }: PageProps) {
   const playerRef = useRef<HTMLIFrameElement>(null)
 
   useEffect(() => {
-    const foundCD = getCD(id)
-    if (foundCD) setCd(foundCD)
+    // Önce URL'deki ID'nin bir paylaşım datası olup olmadığını kontrol et
+    const sharedData = decodeAlbumData(id)
+    
+    if (sharedData) {
+      setCd(sharedData)
+    } else {
+      // Eğer data değilse normal store'dan ara
+      const foundCD = getCD(id)
+      if (foundCD) setCd(foundCD)
+    }
     setIsLoading(false)
   }, [id])
 
@@ -69,6 +89,21 @@ export default function CDPage({ params }: PageProps) {
     if (playerRef.current?.contentWindow) {
       const command = nextState ? "playVideo" : "pauseVideo"
       playerRef.current.contentWindow.postMessage(JSON.stringify({ event: "command", func: command, args: [] }), "*")
+    }
+  }
+
+  // PAYLAŞIM FONKSİYONU
+  const shareAlbum = () => {
+    if (!cd) return
+    try {
+      const jsonStr = JSON.stringify(cd)
+      const encoded = btoa(encodeURIComponent(jsonStr))
+      const shareUrl = `${window.location.origin}/cd/${encoded}`
+      
+      navigator.clipboard.writeText(shareUrl)
+      alert("Paylaşım linki kopyalandı! Artık herkes bu linkle senin albümünü görebilir.")
+    } catch (e) {
+      alert("Link oluşturulurken bir hata oluştu.")
     }
   }
 
@@ -82,21 +117,26 @@ export default function CDPage({ params }: PageProps) {
       {/* ARKA PLAN IŞIKLARI */}
       <motion.div animate={{ opacity: isPlaying ? [0.3, 0.5, 0.3] : 0.2 }} transition={{ repeat: Infinity, duration: 10 }} className="absolute top-[-15%] left-[-15%] w-[50vw] h-[50vw] rounded-full blur-[80px] pointer-events-none z-0" style={{ backgroundColor: cd.color || "#cccccc" }} />
 
-      {/* ANA KONTEYNER: gap-16 ve max-w-5xl ile merkeze toplandı */}
+      {/* PAYLAŞ BUTONU (Sağ Üstte) */}
+      <button 
+        onClick={shareAlbum}
+        className="absolute top-6 right-6 z-50 flex items-center gap-2 px-4 py-2 bg-white/40 backdrop-blur-md border border-white/20 rounded-full shadow-sm hover:bg-white/60 transition-all text-xs font-bold tracking-widest"
+      >
+        <Share2 size={16} /> PAYLAŞ
+      </button>
+
+      {/* ANA KONTEYNER */}
       <div className="flex flex-col lg:flex-row items-center justify-center gap-16 lg:gap-62 z-10 max-w-6xl w-full">
         
         {/* SOL BLOK: BAŞLIK + KAPAK */}
         <div className="flex flex-col items-center gap-6 shrink-0">
           <div className="relative px-6 py-2">
-    {/* Arka plan katmanı */}
-    <div className="absolute inset-0 bg-white/40 backdrop-blur-md border border-white/20 rounded-full shadow-sm -rotate-1"></div>
-    
-    {/* Yazı katmanı */}
-    <h1 className="relative text-2xl md:text-3xl font-black tracking-tighter text-center uppercase text-black/80 drop-shadow-sm">
-      {cd.title}
-    </h1>
-  </div>
-          {/* Boyutlar 300px'e çekildi */}
+            <div className="absolute inset-0 bg-white/40 backdrop-blur-md border border-white/20 rounded-full shadow-sm -rotate-1"></div>
+            <h1 className="relative text-2xl md:text-3xl font-black tracking-tighter text-center uppercase text-black/80 drop-shadow-sm">
+              {cd.title}
+            </h1>
+          </div>
+
           <div className="relative w-[280px] h-[280px] md:w-[300px] md:h-[300px] flex items-center justify-center group">
             <div className="absolute w-[85%] h-[85%] z-0 transition-transform duration-700 ease-out translate-x-[40%] opacity-90 group-hover:translate-x-[50%]">
               <VinylRecord color={cd.color} isPlaying={false} />
@@ -114,7 +154,6 @@ export default function CDPage({ params }: PageProps) {
         </div>
 
         {/* SAĞ BLOK: ÇALAR + BUTON */}
-        {/* mt-12 (yaklaşık başlığın kapladığı alan) ile dikeyde tam hizalandı */}
         <div className="flex flex-col items-center lg:mt-[68px] shrink-0">
           <div className="w-[280px] h-[280px] md:w-[300px] md:h-[300px] bg-gradient-to-br from-[#fdfdfd] to-[#c4c4c4] rounded-2xl p-4 shadow-xl border border-white relative mb-8 backdrop-blur-sm">
             <div className="absolute top-3 left-3 w-1.5 h-1.5 rounded-full bg-gray-400 shadow-inner" />
@@ -136,9 +175,9 @@ export default function CDPage({ params }: PageProps) {
 
           <button
             onClick={togglePlay}
-            className="w-14 h-14 bg-black text-white rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-xl"
+            className="w-16 h-16 bg-black text-white rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-xl"
           >
-            {isPlaying ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" className="ml-1" />}
+            {isPlaying ? <Pause size={28} fill="currentColor" /> : <Play size={28} fill="currentColor" className="ml-1" />}
           </button>
         </div>
 

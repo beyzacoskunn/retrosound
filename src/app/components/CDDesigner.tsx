@@ -60,6 +60,7 @@ export default function CDDesigner() {
   const [crop, setCrop] = useState({ x: 0, y: 0 })
   const [zoom, setZoom] = useState(1)
   const [croppedAreaPixels, setCroppedAreaPixels] = useState(null)
+  const [isUploading, setIsUploading] = useState(false) // Yükleme durumu için
 
   const handleCreate = () => {
     if (!playlistUrl) return alert("Please enter a YouTube link!")
@@ -79,57 +80,56 @@ export default function CDDesigner() {
   // API Anahtarını buraya yapıştır
 const IMGBB_API_KEY = "ac030721719a705149ae4f4b2082c200";
 
-const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-  const file = e.target.files?.[0];
-  if (!file) return;
-
-  // Yükleme başladığında kullanıcıya bir bildirim vermek iyi olur
-  console.log("Resim yükleniyor...");
-
-  const formData = new FormData();
-  formData.append("image", file);
-
-  try {
-    const response = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, {
-      method: "POST",
-      body: formData,
-    });
-
-    const data = await response.json();
-
-    if (data.success) {
-      // İşte internetteki kalıcı link!
-      const imageUrl = data.data.url; 
-      console.log("Yükleme başarılı:", imageUrl);
-      
-      // Şimdi bu imageUrl'i CD objendeki coverImage kısmına set etmelisin
-      // Örnek: setCdData({ ...cdData, coverImage: imageUrl });
-      alert("Resim internete yüklendi ve paylaşılabilir hale geldi!");
+const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.addEventListener("load", () => setImageToCrop(reader.result as string));
+      reader.readAsDataURL(file);
     }
-  } catch (error) {
-    console.error("Yükleme hatası:", error);
-    alert("Resim yüklenirken bir sorun oluştu.");
-  }
-};
-  // Kırpma alanı değiştikçe piksel verilerini kaydeder
+  };
+
   const onCropComplete = useCallback((croppedArea: any, croppedAreaPixels: any) => {
     setCroppedAreaPixels(croppedAreaPixels)
   }, [])
-
-  // "Kırp ve Kaydet" butonuna basıldığında
-  const showCroppedImage = useCallback(async () => {
+  
+  // Kırpma alanı değiştikçe piksel verilerini kaydeder
+const showCroppedImage = useCallback(async () => {
     try {
       if (imageToCrop && croppedAreaPixels) {
-        const croppedImage = await getCroppedImg(imageToCrop, croppedAreaPixels)
-        if (croppedImage) {
-          setCoverImage(croppedImage)
-          setImageToCrop(null) // Kırpma ekranını kapat
+        setIsUploading(true); // Yükleme başladı
+        const croppedImageBlobUrl = await getCroppedImg(imageToCrop, croppedAreaPixels);
+        
+        if (croppedImageBlobUrl) {
+          // Blob URL'i gerçek dosyaya çevir
+          const response = await fetch(croppedImageBlobUrl);
+          const blob = await response.blob();
+          
+          const formData = new FormData();
+          formData.append("image", blob, "cover.jpg");
+
+          // ImgBB'ye Yükle
+          const uploadRes = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, {
+            method: "POST",
+            body: formData,
+          });
+
+          const data = await uploadRes.json();
+
+          if (data.success) {
+            setCoverImage(data.data.url); // İNTERNETTEKİ KALICI LİNK
+            setImageToCrop(null); 
+            alert("Artwork uploaded successfully!");
+          }
         }
       }
     } catch (e) {
-      console.error(e)
+      console.error(e);
+      alert("Upload failed. Please try again.");
+    } finally {
+      setIsUploading(false);
     }
-  }, [imageToCrop, croppedAreaPixels])
+  }, [imageToCrop, croppedAreaPixels]);
 
   return (
     <div className="min-h-screen bg-[#E6E6E6] text-black flex flex-col items-center justify-center p-6 relative font-mono selection:bg-black selection:text-white">
@@ -168,12 +168,7 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
                 />
               </div>
 
-              <button 
-                onClick={showCroppedImage}
-                className="w-full bg-black text-white py-4 rounded-xl font-black tracking-[0.2em] uppercase hover:scale-[1.02] active:scale-[0.98] transition-transform"
-              >
-                CROP & SAVE
-              </button>
+              <button onClick={showCroppedImage} disabled={isUploading}> {isUploading ? "UPLOADING..." : "CROP & SAVE"} </button>
             </div>
           </motion.div>
         )}

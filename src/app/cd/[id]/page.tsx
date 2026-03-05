@@ -13,11 +13,14 @@ interface PageProps {
 
 // URL'deki veriyi güvenli bir şekilde çözmek için (Base64 -> JSON)
 function decodeAlbumData(encodedData: string): CD | null {
+  if (!encodedData || encodedData.length < 20) return null;
   try {
-    const decoded = decodeURIComponent(atob(encodedData))
-    return JSON.parse(decoded)
+    // URL safe karakterleri geri çevir
+    const base64 = encodedData.replace(/-/g, '+').replace(/_/g, '/');
+    const decoded = decodeURIComponent(escape(atob(base64)));
+    return JSON.parse(decoded);
   } catch (e) {
-    return null
+    return null;
   }
 }
 
@@ -84,18 +87,22 @@ export default function CDPage({ params }: PageProps) {
 
   // PAYLAŞIM FONKSİYONU
   const shareAlbum = () => {
-    if (!cd) return
-    try {
-      const jsonStr = JSON.stringify(cd)
-      const encoded = btoa(encodeURIComponent(jsonStr))
-      const shareUrl = `${window.location.origin}/cd/${encoded}`
+  if (!cd) return
+  try {
+    const jsonStr = JSON.stringify(cd)
+    // UTF-8 karakterleri koruyarak encode et
+    const encoded = btoa(unescape(encodeURIComponent(jsonStr)))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, ''); // URL Safe hale getir
       
-      navigator.clipboard.writeText(shareUrl)
-      alert("Paylaşım linki kopyalandı! Artık herkes bu linkle senin albümünü görebilir.")
-    } catch (e) {
-      alert("Link oluşturulurken bir hata oluştu.")
-    }
+    const shareUrl = `${window.location.origin}/cd/${encoded}`
+    navigator.clipboard.writeText(shareUrl)
+    alert("Link copied! Now anyone can see your mix.")
+  } catch (e) {
+    alert("Error creating link.")
   }
+}
 
   if (isLoading || !cd) return <div className="min-h-screen bg-[#E6E6E6] flex items-center justify-center font-mono">LOADING DISC...</div>
 

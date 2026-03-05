@@ -24,23 +24,13 @@ function decodeAlbumData(encodedData: string): CD | null {
 function getYouTubeEmbedUrl(url: string) {
   if (!url) return ""
   try {
-    if (url.includes("list=")) {
-      const urlObj = new URL(url)
-      const listId = urlObj.searchParams.get("list")
-      return `https://www.youtube.com/embed/videoseries?list=${listId}&enablejsapi=1`
-    }
-    let videoId = ""
-    if (url.includes("youtu.be/")) {
-      videoId = url.split("youtu.be/")[1].split("?")[0]
-    } else if (url.includes("watch?v=")) {
-      const urlObj = new URL(url)
-      videoId = urlObj.searchParams.get("v") || ""
-    }
-    if (videoId) return `https://www.youtube.com/embed/${videoId}?enablejsapi=1`
-  } catch (error) { console.error("URL error", error) }
-  return url
+    const urlObj = new URL(url)
+    let videoId = urlObj.searchParams.get("v") || url.split("youtu.be/")[1]?.split("?")[0]
+    
+    // Tarayıcı ve mobil uyumluluğu için gerekli parametreler
+    return `https://www.youtube.com/embed/${videoId}?enablejsapi=1&origin=${window.location.origin}&rel=0`
+  } catch (e) { return url }
 }
-
 // --- ORTAK PLAK BİLEŞENİ ---
 function VinylRecord({ color, isPlaying = false }: { color: string, isPlaying?: boolean }) {
   return (

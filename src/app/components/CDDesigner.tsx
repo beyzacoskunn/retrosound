@@ -76,15 +76,41 @@ export default function CDDesigner() {
   }
 
   // Kullanıcı görsel seçtiğinde Modal'ı açar
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      setImageToCrop(URL.createObjectURL(file))
-    }
-    // Aynı dosyayı tekrar seçebilmek için input'u sıfırlıyoruz
-    e.target.value = ''
-  }
+  // API Anahtarını buraya yapıştır
+const IMGBB_API_KEY = "ac030721719a705149ae4f4b2082c200";
 
+const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+
+  // Yükleme başladığında kullanıcıya bir bildirim vermek iyi olur
+  console.log("Resim yükleniyor...");
+
+  const formData = new FormData();
+  formData.append("image", file);
+
+  try {
+    const response = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, {
+      method: "POST",
+      body: formData,
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      // İşte internetteki kalıcı link!
+      const imageUrl = data.data.url; 
+      console.log("Yükleme başarılı:", imageUrl);
+      
+      // Şimdi bu imageUrl'i CD objendeki coverImage kısmına set etmelisin
+      // Örnek: setCdData({ ...cdData, coverImage: imageUrl });
+      alert("Resim internete yüklendi ve paylaşılabilir hale geldi!");
+    }
+  } catch (error) {
+    console.error("Yükleme hatası:", error);
+    alert("Resim yüklenirken bir sorun oluştu.");
+  }
+};
   // Kırpma alanı değiştikçe piksel verilerini kaydeder
   const onCropComplete = useCallback((croppedArea: any, croppedAreaPixels: any) => {
     setCroppedAreaPixels(croppedAreaPixels)
@@ -170,7 +196,7 @@ export default function CDDesigner() {
 
           <div className="space-y-3">
             <label className="flex items-center gap-2 text-xs font-bold text-black/70 tracking-widest uppercase"><ImageIcon size={16} /> Cover Art</label>
-            <input type="file" accept="image/*" className="hidden" id="cover-upload" onChange={handleFileChange} />
+            <input type="file" accept="image/*" className="hidden" id="cover-upload" onChange={handleFileUpload} />
             <label htmlFor="cover-upload" className="flex items-center justify-center gap-2 w-full bg-[#E6E6E6] border-2 border-dashed border-gray-400 rounded-xl p-4 text-gray-500 font-bold tracking-wider hover:bg-white hover:border-black hover:text-black transition-colors cursor-pointer shadow-inner">
               <Upload size={16} />
               {coverImage ? "CHANGE ARTWORK" : "UPLOAD ARTWORK"}
